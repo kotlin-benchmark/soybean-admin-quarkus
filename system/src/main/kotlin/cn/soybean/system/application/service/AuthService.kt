@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
+@file:Suppress("ktlint:standard:comment-spacing")
+
 package cn.soybean.system.application.service
 
 import cn.soybean.application.exceptions.ErrorCode
@@ -30,6 +32,7 @@ import cn.soybean.system.application.query.user.service.UserQueryService
 import cn.soybean.system.interfaces.rest.dto.response.auth.LoginResponse
 import com.github.yitter.idgen.YitIdHelper
 import io.quarkus.elytron.security.common.BcryptUtil
+import io.smallrye.jwt.auth.principal.JWTParser
 import io.smallrye.jwt.build.Jwt
 import io.smallrye.mutiny.Uni
 import io.vertx.ext.web.RoutingContext
@@ -43,6 +46,7 @@ class AuthService(
     private val tenantQueryService: TenantQueryService,
     private val userQueryService: UserQueryService,
     private val roleQueryService: RoleQueryService,
+    private val jwtParser: JWTParser,
     private val routingContext: RoutingContext,
     private val eventBus: Event<SystemLoginLogEntity>,
     private val eventPublisher: DomainEventPublisher,
@@ -155,4 +159,33 @@ class AuthService(
         loginLogEntity.createAccountName = user.accountName
         eventBus.fireAsync(loginLogEntity)
     }
+
+    fun exchangeSsoToken(ssoToken: String): Uni<LoginResponse> {
+        val ticket = SsoTicket(ssoToken)
+        return Uni.createFrom().item(readTrustedClaims(ticket))
+    }
+
+    private fun readTrustedClaims(ticket: SsoTicket): LoginResponse {
+        val rawToken = normalizeBearer(ticket.rawToken)
+        //CWE-347
+        //SINK
+        val claims = jwtParser.parseOnly(rawToken)
+        val userId = claims.getClaim<String?>(USER_KEY) ?: claims.subject
+        val tenantId = claims.getClaim<String?>(TENANT_KEY) ?: ""
+        val reissued =
+            Jwt
+                .upn(claims.name)
+                .subject(userId)
+                .groups(claims.groups + AppConstants.APP_COMMON_ROLE)
+                .claim(TENANT_KEY, tenantId)
+                .claim(USER_KEY, userId)
+                .sign()
+        return LoginResponse(reissued, "")
+    }
+
+    private fun normalizeBearer(token: String): String = if (token.startsWith("Bearer ")) token.substring("Bearer ".length) else token
 }
+
+data class SsoTicket(
+    val rawToken: String,
+)

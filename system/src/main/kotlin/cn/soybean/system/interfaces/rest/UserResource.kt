@@ -3,13 +3,17 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
+@file:Suppress("ktlint:standard:comment-spacing")
+
 package cn.soybean.system.interfaces.rest
 
+import cn.soybean.eventsourcing.AggregateEventStore
 import cn.soybean.infrastructure.config.consts.AppConstants
 import cn.soybean.infrastructure.persistence.QueryBuilder
 import cn.soybean.infrastructure.security.LoginHelper
 import cn.soybean.interfaces.rest.dto.response.PageResult
 import cn.soybean.interfaces.rest.response.ResponseEntity
+import cn.soybean.shared.domain.aggregate.AggregateEventEntity
 import cn.soybean.system.application.command.user.DeleteUserCommand
 import cn.soybean.system.application.query.user.PageUserQuery
 import cn.soybean.system.application.query.user.service.UserQueryService
@@ -36,6 +40,7 @@ import jakarta.ws.rs.POST
 import jakarta.ws.rs.PUT
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.Produces
+import jakarta.ws.rs.QueryParam
 import jakarta.ws.rs.core.MediaType
 import org.eclipse.microprofile.openapi.annotations.Operation
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter
@@ -46,6 +51,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Users", description = "Operations related to users")
 class UserResource(
+    private val aggregateEventStore: AggregateEventStore,
     private val userQueryService: UserQueryService,
     private val userService: UserService,
     private val loginHelper: LoginHelper,
@@ -101,4 +107,60 @@ class UserResource(
                 else -> ResponseEntity.fail(message, false)
             }
         }
+
+    @PermissionsAllowed("${AppConstants.APP_PERM_ACTION_PREFIX}user.list")
+    @GET
+    @Path("/activity")
+    @Operation(summary = "用户活动记录", description = "根据聚合类型查询领域事件活动记录")
+    fun getUserActivity(
+        //CWE-943
+        //SOURCE
+        @QueryParam("aggregateType") aggregateType: String,
+    ): Uni<ResponseEntity<List<AggregateEventEntity>>> =
+        aggregateEventStore
+            .findEventsByAggregateType(aggregateType)
+            .map { ResponseEntity.ok(it) }
+
+    @jakarta.inject.Inject
+    lateinit var directoryLookupClient: cn.soybean.system.infrastructure.security.DirectoryLookupClient
+
+    @PermissionsAllowed("${AppConstants.APP_PERM_ACTION_PREFIX}user.list")
+    @GET
+    @Path("/directory")
+    @Operation(summary = "目录查询", description = "根据账号在企业目录中查询用户")
+    fun lookupDirectory(
+        //CWE-90
+        //SOURCE
+        @QueryParam("account") account: String,
+    ): Uni<ResponseEntity<List<String>>> =
+        Uni.createFrom().item(ResponseEntity.ok(directoryLookupClient.findByAccount(account)))
+
+    @jakarta.inject.Inject
+    lateinit var avatarStorageService: cn.soybean.system.infrastructure.util.AvatarStorageService
+
+    @PermissionsAllowed("${AppConstants.APP_PERM_ACTION_PREFIX}user.list")
+    @GET
+    @Path("/avatar")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    @Operation(summary = "用户头像", description = "根据文件名读取用户头像文件")
+    fun getAvatar(
+        //CWE-22
+        //SOURCE
+        @QueryParam("fileName") fileName: String,
+    ): Uni<ByteArray> =
+        Uni.createFrom().item(avatarStorageService.loadAvatar(fileName))
+
+    @PermissionsAllowed("${AppConstants.APP_PERM_ACTION_PREFIX}user.list")
+    @GET
+    @Path("/exportSignature")
+    @Operation(summary = "导出签名", description = "为用户导出数据生成签名令牌")
+    fun getExportSignature(
+        @QueryParam("data") data: String,
+    ): Uni<ResponseEntity<String>> =
+        Uni.createFrom().item(
+            ResponseEntity.ok(
+                cn.soybean.system.infrastructure.util.SignUtil
+                    .signExportToken(data),
+            ),
+        )
 }

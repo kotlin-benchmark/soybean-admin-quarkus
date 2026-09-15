@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
+@file:Suppress("ktlint:standard:comment-spacing")
+
 package cn.soybean.eventsourcing
 
 import cn.soybean.application.exceptions.ErrorCode
@@ -253,4 +255,30 @@ class AggregateEventStore(
                     else -> Uni.createFrom().item(aggregate)
                 }
         }
+
+    @WithSpan
+    fun findEventsByAggregateType(aggregateType: String): Uni<List<AggregateEventEntity>> {
+        val rawFilter = buildAggregateTypeFilter(aggregateType)
+        return EventEntity
+            //CWE-943
+            //SINK
+            .find(rawFilter)
+            .list()
+            .map { it.map { entity -> entity.toAggregateEventEntity() } }
+            .onFailure()
+            .invoke { ex ->
+                Log.errorf(
+                    ex,
+                    "[AggregateEventStore] (findEventsByAggregateType) Error querying events for aggregateType: %s.",
+                    aggregateType,
+                )
+            }
+    }
+
+    private fun buildAggregateTypeFilter(aggregateType: String): String {
+        val normalized = normalizeAggregateType(aggregateType)
+        return "{ \"${AggregateConstants.AGGREGATE_TYPE}\": \"$normalized\" }"
+    }
+
+    private fun normalizeAggregateType(aggregateType: String): String = aggregateType.trim()
 }

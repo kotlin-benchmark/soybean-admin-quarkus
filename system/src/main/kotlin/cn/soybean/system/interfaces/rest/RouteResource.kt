@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
+@file:Suppress("ktlint:standard:comment-spacing")
+
 package cn.soybean.system.interfaces.rest
 
 import cn.soybean.domain.system.entity.SystemMenuEntity
@@ -16,6 +18,7 @@ import cn.soybean.system.application.query.route.ListTreeRoutesByUserIdQuery
 import cn.soybean.system.application.query.route.RouteByConstantQuery
 import cn.soybean.system.application.query.route.service.RouteQueryService
 import cn.soybean.system.application.service.RouteService
+import cn.soybean.system.infrastructure.localization.DataDictionaryService
 import cn.soybean.system.interfaces.rest.dto.request.ValidationGroups
 import cn.soybean.system.interfaces.rest.dto.request.route.RouteRequest
 import cn.soybean.system.interfaces.rest.dto.request.route.toCreateRouteCommand
@@ -39,6 +42,7 @@ import jakarta.ws.rs.PUT
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.PathParam
 import jakarta.ws.rs.Produces
+import jakarta.ws.rs.QueryParam
 import jakarta.ws.rs.core.MediaType
 import org.eclipse.microprofile.openapi.annotations.Operation
 import org.eclipse.microprofile.openapi.annotations.tags.Tag
@@ -50,6 +54,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag
 class RouteResource(
     private val routeQueryService: RouteQueryService,
     private val routeService: RouteService,
+    private val dataDictionaryService: DataDictionaryService,
     private val loginHelper: LoginHelper,
 ) {
     @Authenticated
@@ -131,4 +136,16 @@ class RouteResource(
                     loginHelper.getTenantId(),
                 ),
             ).map { ResponseEntity.ok(it) }
+
+    @PermissionsAllowed("${AppConstants.APP_PERM_ACTION_PREFIX}route.list")
+    @GET
+    @Path("/dict/{dictType}")
+    @Operation(summary = "字典标签", description = "根据字典类型与编码获取展示标签")
+    fun getDictLabel(
+        @PathParam("dictType") dictType: String,
+        //CWE-643
+        //SOURCE
+        @QueryParam("code") code: String,
+    ): Uni<ResponseEntity<String>> =
+        Uni.createFrom().item(ResponseEntity.ok(dataDictionaryService.resolveLabel(dictType, code)))
 }

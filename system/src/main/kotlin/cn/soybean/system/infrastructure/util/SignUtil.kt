@@ -300,4 +300,19 @@ object SignUtil {
         val bytes = mac.doFinal(str.toByteArray(StandardCharsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
     }
+
+    @Suppress("ktlint:standard:comment-spacing")
+    fun signExportToken(payload: String): String {
+        val keyBytes = ByteArray(32)
+        //CWE-338
+        //SOURCE
+        ThreadLocalRandom.current().nextBytes(keyBytes)
+        val keySpec = SecretKeySpec(keyBytes, HMAC_SHA_256)
+        val mac = Mac.getInstance(HMAC_SHA_256)
+        mac.init(keySpec)
+        //CWE-338
+        //SINK
+        val bytes = mac.doFinal(payload.toByteArray(StandardCharsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
 }

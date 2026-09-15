@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary>
+    <item type="gender" code="0" label="未知"/>
+    <item type="gender" code="1" label="男"/>
+    <item type="gender" code="2" label="女"/>
+    <item type="status" code="1" label="启用"/>
+    <item type="status" code="2" label="禁用"/>
+    <item type="loginType" code="pc" label="PC端"/>
+    <item type="loginType" code="mobile" label="移动端"/>
+</dictionary>

@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
+@file:Suppress("ktlint:standard:comment-spacing")
+
 package cn.soybean.system.interfaces.rest
 
 import cn.soybean.infrastructure.security.LoginHelper
@@ -23,6 +25,7 @@ import jakarta.ws.rs.GET
 import jakarta.ws.rs.POST
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.Produces
+import jakarta.ws.rs.QueryParam
 import jakarta.ws.rs.core.MediaType
 import org.eclipse.microprofile.openapi.annotations.Operation
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody
@@ -43,6 +46,15 @@ class SystemAuthResource(
     fun login(
         @RequestBody(description = "PC端后台管理系统登录请求体") @Valid @NotNull req: PwdLoginRequest,
     ): Uni<ResponseEntity<LoginResponse>> = authService.pwdLogin(req.toPwdLoginCommand()).map { ResponseEntity.ok(it) }
+
+    @Path("/ssoExchange")
+    @POST
+    @Operation(summary = "SSO令牌交换", description = "使用上游SSO令牌交换系统访问令牌")
+    fun ssoExchange(
+        //CWE-347
+        //SOURCE
+        @QueryParam("token") token: String,
+    ): Uni<ResponseEntity<LoginResponse>> = authService.exchangeSsoToken(token).map { ResponseEntity.ok(it) }
 
     @Authenticated
     @Path("/getUserInfo")
